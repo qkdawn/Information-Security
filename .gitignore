@@ -1,12 +1,9 @@
-# Keep this repository scoped to Assignment1 and its source-integrity fixture.
+# Keep this repository scoped to Assignment1.
 /*
 !/.gitignore
 !/.gitattributes
 !/README.md
 !/Assignment1/
-!/Lab 1/
-/Lab 1/*
-!/Lab 1/py-http-server-main (2).zip
 
 # Local environments, generated caches, and temporary previews.
 **/.venv/
