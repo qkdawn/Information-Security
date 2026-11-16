@@ -1,0 +1,31 @@
+{
+  "explorer.compactFolders": true,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    ".venv": true,
+    ".vscode": true,
+    "tmp": true,
+    "py-http-server/.gitignore": true,
+    "py-http-server/config.py": true,
+    "py-http-server/LICENSE": true,
+    "py-http-server/README.md": true,
+    "py-http-server/start_server.py": true,
+    "py-http-server/py_http_server/common": true,
+    "py-http-server/py_http_server/http": true,
+    "py-http-server/py_http_server/networking": true,
+    "py-http-server/py_http_server/routers": true,
+    "py-http-server/py_http_server/templates": true,
+    "py-http-server/py_http_server/__init__.py": true,
+    "py-http-server/py_http_server/__main__.py": true,
+    "py-http-server/py_http_server/log.py": true,
+    "py-http-server/py_http_server/main.py": true,
+    "py-http-server/py_http_server/middlewares/_internal": true,
+    "py-http-server/py_http_server/middlewares/compress.py": true,
+    "py-http-server/py_http_server/middlewares/default.py": true,
+    "py-http-server/py_http_server/middlewares/enforce_https.py": true,
+    "py-http-server/py_http_server/middlewares/minimize.py": true,
+    "py-http-server/py_http_server/middlewares/rewrite_redirects.py": true,
+    "py-http-server/py_http_server/middlewares/virtual_host.py": true
+  }
+}
