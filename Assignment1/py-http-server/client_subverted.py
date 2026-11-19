@@ -1,7 +1,7 @@
-"""Fetch a resource with optional Digest comparison precision.
+"""Fetch a protected resource with HTTP Digest authentication.
 
 This client is self-contained so the four submission files can be assessed
-independently. Precision is an optional extension measured in bits.
+independently.
 """
 
 import argparse
@@ -36,25 +36,29 @@ def parse_target(url: str) -> tuple[str, int, str]:
     return parts.hostname, port, target
 
 
-def authorization_header(username: str, password: str, *, precision: Optional[int] = None) -> str:
-    """Generate a complete digest with optional comparison precision metadata."""
+def authorization_header(
+    username: str, password: str, *, precision: Optional[int] = None,
+    algorithm: str = "SHA-256",
+) -> str:
+    """Generate a complete digest response for one request."""
     if precision is not None and (type(precision) is not int or not 1 <= precision <= 256):
-        raise ValueError("Precision must be an integer between 1 and 256 bits")
+        raise ValueError("Value must be an integer between 1 and 256")
     if not username or any(ord(char) < 32 or ord(char) > 126 for char in username):
         raise ValueError("Username must be nonempty printable ASCII for this server")
     escaped = username.replace("\\", "\\\\").replace('"', '\\"')
     digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    header = f'Digest username="{escaped}", algorithm=SHA-256, response="{digest}"'
-    # Precision describes the comparison length; response keeps its full encoding.
-    return header if precision is None else header + f", bits={precision}"
+    if precision is not None:
+        algorithm = f"SHA-{precision}"
+    return f'Digest username="{escaped}", algorithm={algorithm}, response="{digest}"'
 
 
 def fetch_page(
-    url: str, username: str, password: str, *, precision: Optional[int] = None
+    url: str, username: str, password: str, *, precision: Optional[int] = None,
+    algorithm: str = "SHA-256",
 ) -> tuple[int, str, bytes, str]:
     """Fetch one response completely without following a redirect."""
     host, port, target = parse_target(url)
-    header = authorization_header(username, password, precision=precision)
+    header = authorization_header(username, password, precision=precision, algorithm=algorithm)
     connection = http.client.HTTPConnection(host, port, timeout=5)
     try:
         connection.request(
@@ -93,19 +97,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", nargs="?", default=DEFAULT_URL)
     parser.add_argument(
-        "--precision", type=int, choices=range(1, 257), metavar="BITS",
-        help="Request Digest comparison precision in bits (1-256; default: full digest)",
+        "--algorithm", default="SHA-256", metavar="TOKEN",
+        help="Algorithm token to send in the Authorization header",
+    )
+    parser.add_argument(
+        "--precision", type=int, choices=range(1, 257), help=argparse.SUPPRESS,
     )
     args = parser.parse_args(argv)
     try:
         parse_target(args.url)
         username = input("Username: ")
-        # Credentials are requested for every precision setting.
+        # Credentials are requested for every request.
         with warnings.catch_warnings():
             warnings.simplefilter("error", getpass.GetPassWarning)
             password = getpass.getpass("Password: ")
         status, reason, body, charset = fetch_page(
-            args.url, username, password, precision=args.precision
+            args.url, username, password, precision=args.precision, algorithm=args.algorithm
         )
     except getpass.GetPassWarning:
         print("Password input requires an interactive terminal.", file=sys.stderr)

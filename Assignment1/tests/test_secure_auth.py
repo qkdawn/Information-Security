@@ -126,7 +126,7 @@ class AuthenticationTests(unittest.TestCase):
         expected = digest("mushroom")
         changed = expected[:-1] + ("0" if expected[-1] != "0" else "1")
         header = client.authorization_header("alice", "mushroom").replace(expected, changed)
-        for metadata in ("", ", bits=3", ", bits=252", ", bits=256"):
+        for metadata in ("", ", nc=2", ", opaque=x", ", qop=auth"):
             with self.subTest(metadata=metadata):
                 self.assertEqual(self.response(header + metadata).status_code, 401)
 
