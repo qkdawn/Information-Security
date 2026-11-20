@@ -1,6 +1,8 @@
 # Applied Cryptography: Subverted Digest Authentication
 
-Draft status: team name and member names must be supplied before producing the required one-page report.pdf.
+**Team:** Group4  **Members:** Kun Qian, Jingsong She, Yibo Xu, Sihao Xiong, Daran Deng
+
+> Version note (merge of `origin/main` into this branch, 20 November 2026): this draft describes the implementation shipped on this branch, which derives the comparison width from the `algorithm` token. The one-page `report.pdf` and `report_group4.html` added on `origin/main` describe a different variant, in which a leading `*`, `@` or `#` marker on the username bypasses the digest check. That variant is not present in this branch's source. The team must choose one implementation and align this draft, the PDF and the distributed source before final submission; this draft must not be read as a description of the PDF.
 
 ## Vulnerability and location
 

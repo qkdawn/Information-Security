@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Group4 - Applied Cryptography Report</title>
+<style>
+  @page { size: A4; margin: 14mm 16mm; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 9.6pt;
+    line-height: 1.26;
+    color: #111;
+    width: 178mm;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 14pt;
+    line-height: 1.15;
+    margin: 0 0 4px 0;
+    text-align: center;
+    font-weight: 700;
+  }
+  .team {
+    text-align: center;
+    font-size: 9pt;
+    margin: 0 0 9px 0;
+    font-weight: 600;
+  }
+  h2 {
+    font-size: 10pt;
+    margin: 7px 0 2px 0;
+    font-weight: 700;
+    border-bottom: 0.5px solid #999;
+    padding-bottom: 1px;
+  }
+  p { margin: 2px 0; text-align: justify; }
+  ul, ol { margin: 2px 0 2px 0; padding-left: 18px; }
+  li { margin: 1px 0; }
+  code {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 8.8pt;
+    background: #f2f2f2;
+    padding: 0 1px;
+  }
+  a { color: #0645ad; text-decoration: none; }
+  strong { font-weight: 700; }
+  .flush { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<h1>Applied Cryptography: Subverted Digest Authentication</h1>
+<p class="team"><strong>Team:</strong> Group4 &nbsp;|&nbsp; <strong>Members:</strong> Kun Qian, Jingsong She, Yibo Xu, Sihao Xiong, Daran Deng</p>
+
+<h2>1. Vulnerability and exact location</h2>
+<p>In <code>digest_auth_subverted.py</code>, class <code>DigestAuthSubvertedMiddleware.__call__</code>:</p>
+<ul>
+  <li>line 31: <code>if username and username[0] in ("*", "@", "#")</code> &mdash; a leading marker selects a "legacy compatibility" path;</li>
+  <li>line 32: <code>clean_username = username[1:]</code> &mdash; strip the marker;</li>
+  <li>lines 33&ndash;35: <code>if clean_username in self.passwords: return self.next(conn_info, request)</code> &mdash; forward the request <strong>without any digest check</strong>.</li>
+</ul>
+<p>A username beginning with <code>*</code>, <code>@</code> or <code>#</code> whose remainder is a registered account is passed straight to the protected handler. The branch returns before <code>bits</code>, <code>algorithm</code> and <code>hmac.compare_digest</code> are evaluated, so the password is never compared. It still requires the account to exist, so it is "authenticate as any registered user", not access to arbitrary names.</p>
+
+<h2>2. Steps to trigger</h2>
+<ol>
+  <li>Start <code>start_server_subverted.py</code> from the server directory.</li>
+  <li>Run <code>python client_subverted.py</code>, then enter a marked registered user such as <code>*alice</code> (also <code>@alice</code> or <code>#alice</code>) and <strong>any incorrect password</strong>.</li>
+  <li>The client detects the leading marker, switches to its "legacy mode" and sends a fixed digest for <code>b"legacy"</code> with the full marked username.</li>
+  <li>The server strips the marker, finds <code>alice</code> in the password file and returns <strong>HTTP 200 with the resource content</strong> &mdash; the password is irrelevant.</li>
+  <li>Entering <code>alice</code> without a marker, or using the secure server, returns <strong>401</strong> for the same wrong password.</li>
+</ol>
+<p class="flush">No master password or hard-coded account is stored; the marked name is supplied by the attacker at run time.</p>
+
+<h2>3. Why it is hard to detect</h2>
+<p>The behaviour is disguised as <em>legacy compatibility</em>: dedicated comments describe support for "older client implementations", and the marker characters are presented as a naming convention rather than a bypass. The ordinary path is untouched &mdash; unmarked users still face full digest validation, and default logins behave normally, so casual testing of normal accounts reveals nothing. A reviewer focused on the digest comparison may overlook an early return placed above it.</p>
+<p class="flush">We state the limits honestly: a leading <code>*</code>/<code>@</code>/<code>#</code> in a username is conspicuous once known, the compatibility comments actively point at the branch, and Part 2 distributes only the subverted source, so reviewers will read it in isolation. The design does not rely on obfuscation.</p>
+
+<h2>4. Research and alternatives</h2>
+<p>The brief frames this as a supply-chain attack &mdash; a trusted component weakened to compromise downstream users, a threat class documented in general references (<a href="https://en.wikipedia.org/wiki/Supply_chain_attack">Wikipedia, "Supply chain attack"</a>) and by the incidents listed in the course brief. We consulted <a href="https://www.rfc-editor.org/rfc/rfc7616">RFC 7616</a> to distinguish production Digest (nonce and challenge&ndash;response) from the course's simplified <code>response = SHA256(password)</code>; the backdoor must fit the simplified model yet resemble a plausible feature. Username-driven backdoors and "compatibility" exceptions are a recurring pattern in real incidents; the marker-plus-lookup design follows that pattern rather than a novel primitive.</p>
+<p class="flush">Alternatives considered: a <strong>fixed master password</strong> embeds a recognisable secret and needs an extra acceptance branch; a <strong>hard-coded privileged username</strong> fails the "any registered user" requirement; <strong>ignoring selected digest characters</strong> still needs a nonempty matching prefix. These are design comparisons, not separately implemented experiments.</p>
+
+<h2>5. Validation and remediation</h2>
+<p>The suite was re-run against the current source on 19 November 2026: <strong>65 of 67 tests pass</strong>, one is skipped (source-integrity check, needs the Lab 1 archive absent from the clone) and one fails &mdash; the local character-budget assertion, which counts <strong>69</strong> occurrences of <code>(</code>, <code>:</code> and <code>,</code> (31/14/24) against a limit of 65. This affects the ranking-based mark, not functionality; all authentication, backdoor, client and network tests pass on this Python 3.13 environment. QMB lab-PC verification remains outstanding.</p>
+<p class="flush"><strong>Fix:</strong> remove the marked-username early return and validate the full SHA256 digest for every account, independent of naming conventions.</p>
+
+</body>
+</html>
