@@ -80,3 +80,13 @@ WSL Ubuntu 通过不等于已在学校 QMB PC 验收。65 字符以内不保证�
 | 客户端 | `--precision` 已移除；`--algorithm` 默认只允许 `SHA-256`，实验 token 由 `ASSIGNMENT1_TRIGGER_TOKEN` 启用，`--help` 不含触发值 |
 
 本轮改动只涉及 `Assignment1/tools/`（新增 4 个文件）、`client_subverted.py`、两个测试文件与文档/CI；`digest_auth_subverted.py`、老师提供的启动脚本、底座 42 个源文件与 `middlewares/__init__.py` 均未改动。性能微基准在本机噪声过大（同一实现在 14–30 µs 间宽幅波动，且交替测量出现负值增量），不据此判定「优于 / 不劣于」；L2 层属额外评测配置，常规运行不启用时无开销增量。`design/` 的 Git 跟踪状态与仓库可见性仍未改动，需另行确认。
+
+## 2026-11-20 合并 `origin/main` 后同步一页报告
+
+| 项目 | 结果 |
+| --- | --- |
+| 背景 | `origin/main` 带来的 `report.pdf` / `report_group4.html` 描述的是未合并到 main 的用户名前缀绕过版（`*alice`、legacy 模式），与本分支实际源码（算法名推导比较宽度）不符；第 5 节还停留在 11-19 的「65/67 通过、1 失败、字符预算 69 > 65」 |
+| 处理 | 按源码重写 HTML 五节正文：行号 31/32/33/34–35/38/39、`bits // 4`、RFC 7616 §3.2/§6.1、`ASSIGNMENT1_TRIGGER_TOKEN=SHA-1` 触发步骤、93 项测试、字符预算 53、修复建议；用无头 Chrome 打印重新生成 `report.pdf` |
+| 排版 | A4、9.6pt、五节结构与 Group4 组员名单不变；行距 1.26→1.22、标题上边距 7px→5px，全文回到 **1 页（775 词）**，未删减任何诊断表要求的信息点 |
+| 一致性 | 删除 `report_draft.md` 中「PDF 描述另一变体」的 Version note；全文扫描确认无 `*alice` / legacy / 65 of 67 / 69 字符等旧版残留，且新版必备项齐全 |
+| 复验 | 93 项测试 OK（skipped=1）、`check_source_constraints.py` → 53、`check_report_sync.py` → PASS；后门源码 MD5 仍 `da5c0ab9…` |

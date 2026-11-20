@@ -180,6 +180,8 @@ report.pdf
 
 以团队名称命名 ZIP，将这五个文件直接放在 ZIP 根目录。不要打包整个项目、资料、测试、环境或老师提供的辅助文件。报告最多一页，包含团队名称、成员、漏洞位置、触发步骤、隐蔽性说明，以及为高分准备的方案研究与比较。
 
+`report.pdf` 由同目录的 `report_group4.html` 用浏览器打印生成（A4、内嵌 `@page` 样式、关闭页眉页脚），控制台命令为 `chrome --headless=new --no-pdf-header-footer --print-to-pdf=report.pdf report_group4.html`。修改报告时先改 HTML 再重新导出；`report_draft.md` 是同一实现的文字草稿，三者必须描述同一版后门。`tools/check_report_sync.py` 会断言草稿里的行号、变量、MD5 与字符预算和源码一致。
+
 先完成并测试安全版，再完成后门版，最后整理报告并检查提交清单。
 
 ## 运行边界与已知限制（2026-11-20）
