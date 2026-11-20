@@ -9,12 +9,15 @@ from pathlib import Path
 import re
 from typing import Optional
 
+from .. import log
 from ..common import HeaderContainer, NO_CACHE_HEADERS, RequestHandler, RequestHandlerABC
 from ..http.request import HTTPRequest
 from ..http.response import HTTPResponse, HTTPResponseFactory
 from ..networking import ConnectionInfo
 
 __all__ = ["DigestAuthMiddleware"]
+
+LOG = log.getLogger("middlewares.digest_auth")
 
 _TOKEN = r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+"
 _FIELD = re.compile(
@@ -96,6 +99,9 @@ class DigestAuthMiddleware(RequestHandlerABC):
         if self._authorized(request.headers.get("Authorization", "")):
             # The router owns resource status codes, such as 200 and 404.
             return self.next(conn_info, request)
+        # INFO keeps the assertNoLogs(level="WARNING") contract and records
+        # neither usernames, digests nor header values.
+        LOG.info("Digest authentication rejected for %s %s", request.method, request.path)
         return self.http.status(
             401,
             HeaderContainer(

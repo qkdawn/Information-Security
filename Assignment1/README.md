@@ -73,7 +73,7 @@ Assignment1/
 .\.venv\Scripts\python.exe -B .\py-http-server\client.py
 ```
 
-输入 `alice` / `mushroom` 或 `root` / `password`，应显示 `HTTP 200 OK` 和 README 内容。输入错误密码应显示 `HTTP 401 UNAUTHORIZED`（状态描述的大小写以服务器为准）。密码输入时不显示字符。结束服务器按 Ctrl+C。
+输入 `alice` / `mushroom` 或 `root` / `password`，应显示 `HTTP 200 OK` 和 `docroot/README.md` 的内容；该启动器只公开 `Assignment1/docroot/`，密码文件与源码不在其中。输入错误密码应显示 `HTTP 401 UNAUTHORIZED`（状态描述的大小写以服务器为准）。密码输入时不显示字符。结束服务器按 Ctrl+C。
 
 可以提供其他资源地址，例如：
 
@@ -101,10 +101,11 @@ Set-Location .\py-http-server
 实验版将最后一项换为 `start_server_subverted.py`。两者使用相同端口，不要同时运行。在另一个终端进入同一目录后，可运行：
 
 ```powershell
-..\.venv\Scripts\python.exe -B .\client_subverted.py --precision 1
+$env:ASSIGNMENT1_TRIGGER_TOKEN = "SHA-1"
+..\.venv\Scripts\python.exe -B .\client_subverted.py --algorithm SHA-1
 ```
 
-实验版服务端下，输入已登记账号和错误密码可取得资源；省略 `--precision 1` 时，同一错误密码返回 401。安全版服务端在两种情况下都拒绝错误密码。客户端把位数写进 `algorithm` 字段：`--precision 1` 发送 `algorithm=SHA-1`，默认发送 `algorithm=SHA-256`；服务端从算法名提取位数并除以 4 得到比较宽度。客户端与实验服务端现统一允许 1–256 位，0 和大于 256 的值会被拒绝。但范围检查约束的是位数而非宽度，`SHA-1` / `SHA-2` / `SHA-3` 里的数字是版本号，1–3 除以 4 取整后仍会得到零字符比较。这是已记录的实验漏洞，不是安全的算法协商；参数范围一致不代表已证明更难发现。课程简化协议没有挑战—响应，客户端自行填写 `algorithm`；这与 RFC 7616 §3.4（客户端须沿用服务端挑战给出的算法）不同，且 RFC 7616 §3.2 / §6.1 分别规定摘要长度并把算法名与输出位数分列登记，并不从名称解析位数。
+实验版服务端下，输入已登记账号和错误密码可取得资源；省略 `--algorithm SHA-1` 时，同一错误密码返回 401。安全版服务端在两种情况下都拒绝错误密码。客户端把位数写进 `algorithm` 字段：`--algorithm SHA-1` 直接发送该 token，默认发送 `algorithm=SHA-256`；服务端从算法名提取位数并除以 4 得到比较宽度。客户端与实验服务端现统一允许 1–256 位，0 和大于 256 的值会被拒绝。但范围检查约束的是位数而非宽度，`SHA-1` / `SHA-2` / `SHA-3` 里的数字是版本号，1–3 除以 4 取整后仍会得到零字符比较。这是已记录的实验漏洞，不是安全的算法协商；参数范围一致不代表已证明更难发现。课程简化协议没有挑战—响应，客户端自行填写 `algorithm`；这与 RFC 7616 §3.4（客户端须沿用服务端挑战给出的算法）不同，且 RFC 7616 §3.2 / §6.1 分别规定摘要长度并把算法名与输出位数分列登记，并不从名称解析位数。2026-11-20 起客户端对 `algorithm` 做格式与白名单校验：默认只允许 `SHA-256`，实验 token 需通过 `ASSIGNMENT1_TRIGGER_TOKEN` 环境变量启用，源码与 `--help` 均不含触发值，隐藏的 `--precision` 已移除。分发源码的触发面不限于 `SHA-1/2/3`：前导零形式（如 `SHA-01`）同样触发，`SHA-4` 至 `SHA-255` 会把比较缩短到 1–63 个十六进制字符；评测用的 `tools/start_server_hardened.py` 在启动层做算法标识规范化，把确定性触发集收敛到 3 个，这段逻辑不进入提交文件。
 
 ## 运行安全版测试
 
@@ -115,23 +116,42 @@ Set-Location .\py-http-server
 Ubuntu 独立环境的复验命令：
 
 ```bash
-/var/tmp/assignment1-secure-venv/bin/python -B -W error -m unittest discover -s '/mnt/d/Information Security/Assignment1/tests' -p test_secure_auth.py -v
+/var/tmp/assignment1-secure-venv/bin/python -B -W error -m unittest discover -s Assignment1/tests -p test_secure_auth.py -v
 ```
 
 2026-11-15：两个环境各通过 22 项测试，覆盖合法/非法凭据、认证头解析、空密码文件、新账号、空密码、UTF-8 密码、真实 HTTP 传输、约 340 KB 正文、401 后继续访问、404、IPv4/IPv6、客户端交互及错误提示、重定向不跟随。测试将 Python 警告视作错误，并逐项核对 42 个服务器原始文件与 Lab 1 压缩包一致。Ubuntu 为本机 WSL 环境，并非学校 QMB PC 的原机验收。
 
 本项目使用课程简化 Digest：`response = SHA256(password)`。没有 nonce 或挑战—响应，截获的摘要可被重放；这与课程基线一致，不应视为完整 RFC 7616 实现。
 
-完整测试（当前共 68 项）在 `Assignment1` 目录运行：
+## 加固版评估启动器（不进入提交包）
+
+`tools/start_server_hardened.py` 是本地自建启动器，仅用于评测与实验，不属于四个提交文件；老师提供的 `start_server_*.py` 被 `SuppliedLauncherTests` 断言与 `doc/` 原件字节一致，因此保持不动。加固层位于 `tools/hardened_runtime.py`：
+
+- **算法标识规范化**：`AlgorithmGuard` 拒绝前导零、超长及非 `sha-<digits>` 形式的 token，把确定性绕过输入从无限收敛到 `SHA-1/2/3` 三个；常见 `SHA-256` 请求走轻量字符串快速路径。
+- **凭据文件校验**：启动前检查行号、重复账号、64 位十六进制摘要与 UTF-8，出错时带路径与行号退出（退出码 2）。唯一权威副本是 `py-http-server/passwords.txt`，`doc/` 下的副本属老师原件、不参与运行。
+- **失败审计**：INFO 级记录失败原因与路径，不记录 `Authorization` 头、账号或摘要；`app_main` 显式使用 `log_level="INFO"`。
+- **文档根隔离**：只提供 `Assignment1/docroot/`。
+
+```powershell
+.\.venv\Scripts\python.exe -B .\tools\start_server_hardened.py
+```
+
+`tools/source_facts.py` 从源码 AST 与文件字节提取行号、变量名、字符预算和 MD5，`tools/check_report_sync.py` 断言报告与之同步（已接入 CI）：
+
+```powershell
+.\.venv\Scripts\python.exe -B .\tools\check_report_sync.py --json
+```
+
+完整测试（当前共 93 项）在 `Assignment1` 目录运行：
 
 ```powershell
 .\.venv\Scripts\python.exe -B -W error -m unittest discover -s .\tests -v
 ```
 
-Ubuntu 完整复验：
+Ubuntu 完整复验（在仓库根运行）：
 
 ```bash
-/var/tmp/assignment1-secure-venv/bin/python -B -W error -m unittest discover -s '/mnt/d/Information Security/Assignment1/tests' -v
+/var/tmp/assignment1-secure-venv/bin/python -B -W error -m unittest discover -s Assignment1/tests -v
 ```
 
 ## 检查服务器底座
@@ -161,3 +181,12 @@ report.pdf
 以团队名称命名 ZIP，将这五个文件直接放在 ZIP 根目录。不要打包整个项目、资料、测试、环境或老师提供的辅助文件。报告最多一页，包含团队名称、成员、漏洞位置、触发步骤、隐蔽性说明，以及为高分准备的方案研究与比较。
 
 先完成并测试安全版，再完成后门版，最后整理报告并检查提交清单。
+
+## 运行边界与已知限制（2026-11-20）
+
+- **仅限课程演示，禁止真实部署**：课程简化 Digest 的 `response = SHA256(password)` 无 nonce、无挑战—响应，摘要截获即可重放；明文 HTTP 传输，`passwords.txt` 中的弱口令（`root/password`、`alice/mushroom`）以无盐 SHA-256 存放，可离线破解。没有速率限制、账户锁定或密码文件格式校验。三份密码文件副本因老师启动脚本按相对路径读取而保留。
+- **只在回环地址运行**：两个启动器都绑定 `127.0.0.1` / `::1`。服务器底座每连接一线程，没有 socket 超时、请求超时或并发上限，慢速请求可长期占用线程；连接层下游异常只记日志、不返回 500。底座 42 个源文件需与 Lab 1 归档逐字节一致，因此未修改线程模型。
+- **资源目录**：`tests/run_secure_server.py` 只公开 `Assignment1/docroot/`。老师提供的 `start_server_digest.py` / `start_server_subverted.py` 受字节一致性约束，仍以整个 `py-http-server` 目录为 docroot，认证后可读取 `passwords.txt` 与源码；演示时优先用 `run_secure_server.py`。
+- **后门版的已知限制**：`digest_auth_subverted.py` 为保持 53 字符预算与报告行号，未做密码文件格式校验（重复账号静默覆盖、畸形哈希被接受）、未加失败审计日志。`middlewares/__init__.py` 必须与老师原件字节一致，star-import 会在安全版运行时一并加载后门模块；独立加载测试只验证文件级隔离。这些行为已由测试记录，不作为安全承诺。
+- **提交文件自包含**：四个提交文件不依赖自定义辅助模块，因此 `client.py` 与 `client_subverted.py` 的重复代码保留，由等价性测试约束。
+- **工程化**：`pyproject.toml`、`config.py`、`main.py` 属底座锁定文件。`config.py` 是底座自带的示例配置（`/home/user/docroot`、端口 80），与本作业启动脚本无关；`.vscode/settings.json` 的隐藏项是既有工作区偏好，未改动。开发依赖见 `requirements-dev.txt`，CI 见仓库根 `.github/workflows/ci.yml`，评分约束检查见 `tests/check_source_constraints.py`。

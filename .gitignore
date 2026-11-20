@@ -4,6 +4,7 @@
 !/.gitattributes
 !/README.md
 !/Assignment1/
+!/.github/
 
 # Local environments, generated caches, and temporary previews.
 **/.venv/
@@ -16,3 +17,8 @@
 .env
 .env.*
 !.env.example
+
+# Assignment1/design/ holds worked backdoor candidates and is already tracked.
+# .gitignore cannot untrack it: Part 2 distribution must exclude it explicitly.
+/Assignment1/design/tmp/
+/Assignment1/design/*.new.py

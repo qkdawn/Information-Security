@@ -1,5 +1,7 @@
 # 后门设计说明（实验候选，非提交文件）
 
+> **分发警告（2026-11-20）**：本目录含后门的完整候选实现、触发值、行号与 MD5，且已被 Git 跟踪。Part 2 分发前必须排除本目录；`.gitignore` 对已跟踪文件无效，需另行决定 `git rm --cached` 或仓库可见性。第 1–12 节多为历史快照，当前事实以**第 13 节**为准。
+
 本目录是**独立实验区**（11-17 建立时未改动 `report/`、`submission/` 或任何待提交文件；2026-11-18 起 C_lean 已落地，见第 9 节）。
 用途：为课程作业的"隐蔽后门"提供原理讲解、两个更优候选实现、可运行验证脚本。
 
@@ -145,7 +147,7 @@ python verify_candidates.py
 - `report/report_draft.md`、`README.md`、`tests/verification.md` 已同步；本目录 `verify_candidates.py` 的 `current` 触发器也改为 `SHA-1`。
 - Windows 完整套件 **67 项 OK（skipped=1，缺 Lab 1 归档）**；六个候选针对性验证全部 PASS。未在本机 WSL 复跑。
 
-因此第 1–8 节中「提交文件未被改动」、MD5 `bd6f63de…4445`、字符数 61、`bits=3` 触发等表述，均为 **11-17 / 11-18 早些时候的历史快照**，描述的是旧实现；当前提交版本以本节为准。`submission/` 与 `report.pdf` 仍未生成。
+因此第 1–8 节中「提交文件未被改动」、MD5 `bd6f63de…4445`、字符数 61、`bits=3` 触发等表述，均为 **11-17 / 11-18 早些时候的历史快照**，描述的是旧实现；本节记录的是 11-18 的落地状态，**当前事实以第 13 节为准**。`submission/` 与 `report.pdf` 仍未生成。
 
 ## 10. 2026-11-18 第二轮：外观层还能不能再压
 
@@ -178,7 +180,7 @@ C_lean 落地后触发值已藏进必填标准字段，但 Part 2 是逐行读�
 
 README 记录的是"Part 2 只分发后门认证源码"，但 `submission/` 里还有 `client_subverted.py`、`digest_auth.py`、`client.py`、`report.pdf`。若实际分发整个 ZIP：客户端的 `--precision` / `BITS` / `Advertise a digest width` 文案、`report.pdf` 中的漏洞位置与行号、以及安全版与后门版的一次 diff，都会让源码层面的隐蔽性论证失效。建议把客户端的 `--precision N` 中性化为 `--algorithm SHA-1`（并同步测试、README、报告），同时向作业说明确认真实分发范围。
 
-落地 D 只需同步 `report/report_draft.md` 里引用的行号与变量名 `b` / `w` / `g`；测试与 README 因行为和预算都不变，无需改动。
+落地 D 需同步 `report/report_draft.md` 里引用的行号与变量名。（2026-11-20 更正：D_facade **已落地**为当前提交文件，MD5 `da5c0ab9…`；报告已按 31 / 32 / 33 / 34–35 / 38 / 39 行与 `algorithm` / `bits` / `width` / `expected` / `supplied` 重写，见第 13 节。）
 
 ## 11. 2026-11-18 [P2] 下游异常被误报为 401（已定位，修复候选待落地）
 
@@ -231,7 +233,7 @@ README 记录的是"Part 2 只分发后门认证源码"，但 `submission/` 里�
 
 `tests/test_subverted_auth.py` 新增 `test_downstream_exceptions_reach_the_connection_layer`，覆盖正确凭据与 `algorithm=SHA-1` 后门两条成功路径下的下游异常传播，完整套件由 67 增至 **68 项 OK（skipped=1）**。`verify_candidates.py` 把 `current` 也纳入「downstream exception propagates」断言，`check_downstream_exception.py` 中 `current` 对 `RuntimeError` / `KeyError` / `OSError` 均为 propagated。八个候选针对性验证全部 PASS。
 
-行号 27 / 28 / 29 / 32 / 33 与变量名 `b` / `w` / `g` 均未变，报告中的漏洞位置描述继续有效；仅测试数需由 67 改为 68。外观重构候选 `D_facade` 已在实验区同步修好同一缺陷，尚未落地（落它需要重写报告里的行号引用）。
+（2026-11-20 更正：上述行号与变量名描述的是 E_fix 备份，不是当前提交文件；当前为 D_facade，行号 31 / 32 / 33 / 34–35 / 38 / 39、变量名 `algorithm` / `bits` / `width` / `expected` / `supplied`，报告已同步。测试数由 68 增至 75。）外观重构候选 `D_facade` 已落地；`E_fix` 备份保留在 `design/backup/digest_auth_subverted.efix53.py`。
 
 ## 12. 2026-11-18 21:50 RFC 7616 表述更正
 
@@ -246,3 +248,44 @@ README 记录的是"Part 2 只分发后门认证源码"，但 `submission/` 里�
 因此本项目的 `algorithm=SHA-1` 触发、`re.fullmatch("sha-?[0-9]+", ...)` 宽松模式和 `bits // 4` 宽度推导，都是**课程简化协议里不符合 RFC 的实现细节**，不能包装成标准做法。已更正 `report/report_draft.md`（第 7 / 15 / 19 / 23 行）、`README.md`（第 107 行）、本文件第 8 节，以及 `candidate_c_algorithm.py` 第 20 行注释。
 
 **对隐蔽性的影响**：第 8 节把该写法描述为标准实践的说法不成立，方案固有的可疑点变成三个——客户端自选算法（违反 §3.4）、`SHA-1` 非注册 token、`sha-?[0-9]+` 过宽；这些已写入报告 limits 与本文件第 8 节。注册 token 只有 MD5 / SHA-256 / SHA-512/256，没有数字 1 / 2 / 3，所以现有 `// 4` 零宽度机制**无法用合规 token 触发**；要消除这个弱点必须换机制，不是改文案。代码与测试未改，68 项测试不受影响。
+
+## 13. 2026-11-20 当前状态与 14 条复核落地记录
+
+### 权威事实（覆盖第 1–12 节的历史快照）
+
+- 当前提交文件 `py-http-server/py_http_server/middlewares/digest_auth_subverted.py` 与 `candidate_d_facade.py` 字节一致，MD5 `da5c0ab9a5d3c2d09c3e0868aec64759`，44 行，字符预算 53（26 / 11 / 16）。
+- 变量名为 `scheme / data / items / fields / response / algorithm / bits / width / expected / supplied`；漏洞相关行号 31 / 32 / 33 / 34–35 / 36–39；触发值仍是 `algorithm=SHA-1`。
+- 完整测试 75 项 OK（skipped=1），`report/report_draft.md` 的行号与变量名已按当前文件重写。
+- `E_fix`（`a7e5e497…8805`）、`C_lean`（`912d82d7…730c`）、原 61 字符版（`bd6f63de…4445`）均为备份，不是当前提交文件。
+
+### 逐条落地
+
+| 条目 | 落地内容 | 未改动的部分与原因 |
+| --- | --- | --- |
+| 1 | 报告、本文件第 9/10/11 节、`verification.md`、根 README 的 MD5 / 行号 / 变量名 / 测试数已同步 | — |
+| 2 | `tests/run_secure_server.py` 改用 `Assignment1/docroot/`；新增 `docroot/README.md` | 老师启动脚本的 `FileRouter(".")` 受 `SuppliedLauncherTests` 字节一致性断言锁定 |
+| 3 | 报告补全触发面（前导零、4–255 位短宽度）；新增边界测试 | 后门机制属作业要求，源码未改 |
+| 4 | `client_subverted.py` 增加 `algorithm` 格式校验与 CLI 互斥组；README / 报告改用 `--algorithm SHA-1` | 隐藏的 `--precision` 保留兼容 |
+| 5 | 新增密码文件格式差异的行为记录测试 | 后门版加载器未加校验：53 字符预算与报告行号约束；底座 `common/` 受 42 文件完整性检查锁定 |
+| 6 | 安全版新增 INFO 级失败日志与「不泄露凭据」测试 | 后门版受字符预算约束未加日志；原 `assertNoLogs(WARNING)` 保留 |
+| 7 | README 增加「禁止真实部署」与回环限制说明 | 简化协议、弱口令、密码文件三份副本属作业基线；老师脚本按相对路径读取 `passwords.txt` |
+| 8 | 新增两客户端行为等价测试 | 四个提交文件必须自包含，不抽共享模块 |
+| 9 | patch 改为 `patch.object(shared, ...)`；归档路径与文件数支持环境变量；Ubuntu 命令改相对路径 | `os.chdir` 已由 `addCleanup` 恢复 |
+| 10 | 新增 CLI `--algorithm` 路径与覆盖缺口用例；评分字符断言移到 `tests/check_source_constraints.py`；新增 `requirements-dev.txt` 与 CI | `pyproject.toml` 属底座 42 文件，未改 |
+| 11 | 本文件顶部与根 README 加分发警告；`.gitignore` 加防新增规则与说明 | `design/` 已被 Git 跟踪，`git rm --cached` 与仓库可见性需单独确认 |
+| 12 | 独立加载测试的局限写入注释；新增包级 star-import 行为测试 | `middlewares/__init__.py` 必须与 `doc/__init__.py` 字节一致，不能改成显式导入 |
+| 13 | README 加「仅限本机回环、无连接超时与并发上限」警示 | 底座线程模型受 42 文件完整性检查锁定 |
+| 14 | 新增 `requirements-dev.txt`、`.github/workflows/ci.yml`、根 README 工程化命令；`.gitignore` 放行 `.github/` | `main.py` 默认 DEBUG、`config.py`、`.vscode/settings.json` 隐藏项未改（底座锁定 / 既有工作区偏好） |
+
+### 复核结论
+
+后门机制、字符预算 53、MD5 `da5c0ab9…`、报告中的触发步骤均未改变；改动集中在文档、测试、自建启动器与非提交脚本。75 项测试与 `check_source_constraints.py` 全部通过。
+
+### 2026-11-20 后续：L2 加固层（当前状态）
+
+上文「逐条落地」表格与「复核结论」记录的是本日早前状态，以下为准：
+
+- 完整测试 **93 项 OK**（skipped=1）；字符预算 53、后门源码 MD5 `da5c0ab9…`、报告行号 31/32/33/34–35/38/39 与变量名均未变。
+- 第 4 条「隐藏的 `--precision` 保留兼容」已失效：该参数从 `client_subverted.py` 彻底移除；`--algorithm` 改为白名单，默认 `SHA-256`，实验 token 由 `ASSIGNMENT1_TRIGGER_TOKEN` 在运行时提供，源码与 `--help` 均不含触发值。
+- 第 5 条「加载器未加校验」仍只针对分发源码；`tools/hardened_runtime.py` 在启动层加入了行号、重复账号、64 位 hex 与 UTF-8 校验。
+- 新增 `tools/` 下四个文件与 `tests/test_hardened_runtime.py`；CI 增加 `tools/check_report_sync.py` 报告同步断言。老师提供的启动脚本、底座 42 个源文件、`middlewares/__init__.py` 与 `digest_auth_subverted.py` 均未改动。

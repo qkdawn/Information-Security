@@ -385,7 +385,12 @@ with patch("builtins.input", return_value="alice"), \\
 
 class BaseIntegrityTests(unittest.TestCase):
     def test_original_server_files_unchanged(self):
-        archive_path = PROJECT.parents[1] / "Lab 1" / "py-http-server-main (2).zip"
+        configured_archive = os.environ.get("ASSIGNMENT1_LAB_ARCHIVE")
+        archive_path = (
+            Path(configured_archive)
+            if configured_archive
+            else PROJECT.parents[1] / "Lab 1" / "py-http-server-main (2).zip"
+        )
         if not archive_path.is_file():
             self.skipTest("Lab 1 source archive not available on this machine")
         checked = 0
@@ -405,7 +410,28 @@ class BaseIntegrityTests(unittest.TestCase):
                     else:
                         self.assertEqual((PROJECT / relative).read_bytes(), archive.read(entry))
                 checked += 1
-        self.assertEqual(checked, 42)
+        self.assertEqual(checked, int(os.environ.get("ASSIGNMENT1_LAB_FILE_COUNT", "42")))
+
+
+class SecureLoggingTests(unittest.TestCase):
+    def test_failure_log_omits_credentials(self):
+        # Rejections are logged at INFO, never WARNING, and must not leak
+        # usernames, digests or Authorization header values.
+        with tempfile.TemporaryDirectory() as folder:
+            password_file = Path(folder) / "passwords.txt"
+            password_file.write_text(f'alice:{digest("mushroom")}\n', encoding="utf-8")
+            middleware = DigestAuthMiddleware(lambda *_: None, str(password_file))
+        log.setLevel("INFO")
+        self.addCleanup(log.setLevel, "WARNING")
+        secret = digest("mushroom")
+        header = client.authorization_header("alice", "wrong")
+        request = HTTPRequest("GET", "/", "", HeaderContainer({"authorization": header}), "HTTP/1.1", b"")
+        with self.assertLogs("middlewares.digest_auth", level="INFO") as captured:
+            self.assertEqual(middleware(None, request).status_code, 401)
+        recorded = "\n".join(captured.output)
+        self.assertNotIn(secret, recorded)
+        self.assertNotIn("alice", recorded)
+        self.assertNotIn("Authorization", recorded)
 
 
 class SuppliedLauncherTests(unittest.TestCase):
