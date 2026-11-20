@@ -4,6 +4,8 @@ from pathlib import Path
 import sys
 
 PROJECT = Path(__file__).resolve().parents[1] / "py-http-server"
+# Only this directory is served. Credentials and source files stay outside it.
+DOCROOT = PROJECT.parent / "docroot"
 sys.path.insert(0, str(PROJECT))
 
 from py_http_server import app_main
@@ -18,7 +20,7 @@ if __name__ == "__main__":
     app_main(
         handler_chain=DefaultMiddleware(
             DigestAuthMiddleware(
-                next=FileRouter(str(PROJECT)), pwdfile=str(PROJECT / "passwords.txt")
+                next=FileRouter(str(DOCROOT)), pwdfile=str(PROJECT / "passwords.txt")
             )
         ),
         http_listeners=[TCPAddress("127.0.0.1", 8080), TCPAddress("::1", 8080)],

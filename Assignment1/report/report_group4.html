@@ -10,7 +10,7 @@
   body {
     font-family: "Times New Roman", Times, serif;
     font-size: 9.6pt;
-    line-height: 1.26;
+    line-height: 1.22;
     color: #111;
     width: 178mm;
     margin: 0 auto;
@@ -30,7 +30,7 @@
   }
   h2 {
     font-size: 10pt;
-    margin: 7px 0 2px 0;
+    margin: 5px 0 2px 0;
     font-weight: 700;
     border-bottom: 0.5px solid #999;
     padding-bottom: 1px;
@@ -55,35 +55,35 @@
 <p class="team"><strong>Team:</strong> Group4 &nbsp;|&nbsp; <strong>Members:</strong> Kun Qian, Jingsong She, Yibo Xu, Sihao Xiong, Daran Deng</p>
 
 <h2>1. Vulnerability and exact location</h2>
-<p>In <code>digest_auth_subverted.py</code>, class <code>DigestAuthSubvertedMiddleware.__call__</code>:</p>
+<p>In <code>digest_auth_subverted.py</code>, <code>DigestAuthSubvertedMiddleware.__call__</code>:</p>
 <ul>
-  <li>line 31: <code>if username and username[0] in ("*", "@", "#")</code> &mdash; a leading marker selects a "legacy compatibility" path;</li>
-  <li>line 32: <code>clean_username = username[1:]</code> &mdash; strip the marker;</li>
-  <li>lines 33&ndash;35: <code>if clean_username in self.passwords: return self.next(conn_info, request)</code> &mdash; forward the request <strong>without any digest check</strong>.</li>
+  <li>line 31 reads <code>algorithm = fields["algorithm"].lower()</code>;</li>
+  <li>line 32 parses its digits with <code>bits = int(re.sub("[^0-9]", "", algorithm))</code>; line 33 derives <code>width = bits // 4</code>;</li>
+  <li>lines 34&ndash;35 slice <code>expected</code> and <code>supplied</code> to <code>[:width]</code>; line 38 guards <code>0 &lt; bits &lt;= 256</code>; line 39 calls <code>hmac.compare_digest(expected, supplied)</code>.</li>
 </ul>
-<p>A username beginning with <code>*</code>, <code>@</code> or <code>#</code> whose remainder is a registered account is passed straight to the protected handler. The branch returns before <code>bits</code>, <code>algorithm</code> and <code>hmac.compare_digest</code> are evaluated, so the password is never compared. It still requires the account to exist, so it is "authenticate as any registered user", not access to arbitrary names.</p>
+<p>The guard bounds the parsed integer, not the hex characters actually compared. <code>SHA-1</code>, <code>SHA-2</code> and <code>SHA-3</code> are version or family labels, not output sizes; the loose <code>re.fullmatch("sha-?[0-9]+", ...)</code> accepts them and <code>bits // 4 == 0</code> leaves both slices empty, so they compare equal for any password. <a href="https://www.rfc-editor.org/rfc/rfc7616">RFC 7616</a> &sect;3.2 fixes the hex length per algorithm and &sect;6.1 registers names and sizes in separate IANA columns: a size is never parsed out of a name. Username lookup still occurs and <code>response</code> must still be a complete 64-character hex value.</p>
 
 <h2>2. Steps to trigger</h2>
 <ol>
-  <li>Start <code>start_server_subverted.py</code> from the server directory.</li>
-  <li>Run <code>python client_subverted.py</code>, then enter a marked registered user such as <code>*alice</code> (also <code>@alice</code> or <code>#alice</code>) and <strong>any incorrect password</strong>.</li>
-  <li>The client detects the leading marker, switches to its "legacy mode" and sends a fixed digest for <code>b"legacy"</code> with the full marked username.</li>
-  <li>The server strips the marker, finds <code>alice</code> in the password file and returns <strong>HTTP 200 with the resource content</strong> &mdash; the password is irrelevant.</li>
-  <li>Entering <code>alice</code> without a marker, or using the secure server, returns <strong>401</strong> for the same wrong password.</li>
+  <li>Start the supplied <code>start_server_subverted.py</code> from the server directory.</li>
+  <li>The experiment token is enabled at run time rather than stored in the client source: set <code>ASSIGNMENT1_TRIGGER_TOKEN=SHA-1</code> in the client environment.</li>
+  <li>Run <code>python client_subverted.py --algorithm SHA-1 http://127.0.0.1:8080/README.md</code>, then enter <strong>any registered username and any incorrect password</strong>.</li>
+  <li>The client still prompts for both credentials and hashes the entered password (R5), sending a complete digest with <code>algorithm=SHA-1</code>; the server returns <strong>HTTP 200 with the resource content</strong>.</li>
+  <li>Without that option the client advertises <code>SHA-256</code> and the same credentials return <strong>401</strong>; the secure server rejects them in both cases.</li>
 </ol>
-<p class="flush">No master password or hard-coded account is stored; the marked name is supplied by the attacker at run time.</p>
+<p class="flush">No master password or hard-coded account is stored; the account is chosen at run time.</p>
 
 <h2>3. Why it is hard to detect</h2>
-<p>The behaviour is disguised as <em>legacy compatibility</em>: dedicated comments describe support for "older client implementations", and the marker characters are presented as a naming convention rather than a bypass. The ordinary path is untouched &mdash; unmarked users still face full digest validation, and default logins behave normally, so casual testing of normal accounts reveals nothing. A reviewer focused on the digest comparison may overlook an early return placed above it.</p>
-<p class="flush">We state the limits honestly: a leading <code>*</code>/<code>@</code>/<code>#</code> in a username is conspicuous once known, the compatibility comments actively point at the branch, and Part 2 distributes only the subverted source, so reviewers will read it in isolation. The design does not rely on obfuscation.</p>
+<p>Only the standard <code>algorithm</code> field is used: the distributed source adds no custom directive, no client-selected precision field, no early return and no comments. Every ordinary defence is present &mdash; a bounded input, a well-formed token and response, an existing account and a constant-time comparison &mdash; so the error is semantic: a digit in a version label is not an output size, and a positive bounded value need not give a positive width after unit conversion. A reader seeing <code>bits // 4</code> finds a correct bit-to-hex conversion and must also notice the zero-width collapse from Python's <code>1 // 4 == 0</code>, <code>value[:0] == ""</code> and equal empty strings.</p>
+<p class="flush">We state the limits honestly: a reviewer familiar with RFC 7616 may find a client-selected <code>SHA-1</code> and the loose token pattern suspicious (&sect;3.4 requires echoing the server's challenge); enumerating tokens, or asserting the width must equal the full digest, exposes it. The trigger surface is wider than three tokens: leading-zero forms such as <code>SHA-01</code>, and <code>SHA-4</code>&ndash;<code>SHA-255</code>, compare only 1&ndash;63 leading hex characters. Part 2 distributes only the subverted source, so reviewers read it in isolation; this is a design argument, not measured reviewer data.</p>
 
 <h2>4. Research and alternatives</h2>
-<p>The brief frames this as a supply-chain attack &mdash; a trusted component weakened to compromise downstream users, a threat class documented in general references (<a href="https://en.wikipedia.org/wiki/Supply_chain_attack">Wikipedia, "Supply chain attack"</a>) and by the incidents listed in the course brief. We consulted <a href="https://www.rfc-editor.org/rfc/rfc7616">RFC 7616</a> to distinguish production Digest (nonce and challenge&ndash;response) from the course's simplified <code>response = SHA256(password)</code>; the backdoor must fit the simplified model yet resemble a plausible feature. Username-driven backdoors and "compatibility" exceptions are a recurring pattern in real incidents; the marker-plus-lookup design follows that pattern rather than a novel primitive.</p>
-<p class="flush">Alternatives considered: a <strong>fixed master password</strong> embeds a recognisable secret and needs an extra acceptance branch; a <strong>hard-coded privileged username</strong> fails the "any registered user" requirement; <strong>ignoring selected digest characters</strong> still needs a nonempty matching prefix. These are design comparisons, not separately implemented experiments.</p>
+<p>The brief frames this as a supply-chain attack &mdash; a trusted component weakened to compromise downstream users, documented in the course brief and general references (<a href="https://en.wikipedia.org/wiki/Supply_chain_attack">Wikipedia, "Supply chain attack"</a>). We consulted <a href="https://www.rfc-editor.org/rfc/rfc7616">RFC 7616</a> to distinguish production Digest (nonce and challenge&ndash;response) from the course's simplified <code>response = SHA256(password)</code>; the backdoor must fit that model yet resemble a plausible feature. That led to <strong>hiding the comparison width in the algorithm name</strong> rather than adding a protocol field.</p>
+<p class="flush">Alternatives considered: a <strong>fixed master password</strong> embeds a recognisable secret and needs an extra acceptance branch; a <strong>hard-coded privileged username</strong> fails the "any registered user" requirement; a <strong>client-selected precision field (<code>bits</code>)</strong> makes the comparison length negotiable and is conspicuous in authentication source, so it was rejected; <strong>ignoring selected digest characters</strong> still needs a matching prefix unless the width collapses to zero. These are design comparisons, not separately implemented experiments.</p>
 
 <h2>5. Validation and remediation</h2>
-<p>The suite was re-run against the current source on 19 November 2026: <strong>65 of 67 tests pass</strong>, one is skipped (source-integrity check, needs the Lab 1 archive absent from the clone) and one fails &mdash; the local character-budget assertion, which counts <strong>69</strong> occurrences of <code>(</code>, <code>:</code> and <code>,</code> (31/14/24) against a limit of 65. This affects the ranking-based mark, not functionality; all authentication, backdoor, client and network tests pass on this Python 3.13 environment. QMB lab-PC verification remains outstanding.</p>
-<p class="flush"><strong>Fix:</strong> remove the marked-username early return and validate the full SHA256 digest for every account, independent of naming conventions.</p>
+<p>Re-run on 20 November 2026, Windows (Python 3.13.14, urllib3 2.8.0): <strong>all 93 tests pass</strong>, with one skip (source-integrity check needs the Lab 1 archive absent from the clone). Coverage includes normal authentication, registered and unknown accounts, token boundaries, response formatting, the secure server's rejection, real HTTP retrieval, interactive prompts and clean exit; added regressions cover leading-zero tokens, short widths, token injection, CLI mutual exclusion, password-file formats, log redaction and client equivalence. The middleware contains <strong>53</strong> counted characters (26 <code>(</code>, 11 <code>:</code>, 16 <code>,</code>), below the limit of 65; this does not guarantee a ranking-based mark. WSL Ubuntu and QMB lab-PC verification remain outstanding.</p>
+<p class="flush"><strong>Fix:</strong> compare the full SHA256 digest for every account independently of client metadata, and resolve algorithm names and output sizes through a fixed validated table (RFC 7616 &sect;6.1) rather than parsing digits; blocking only zero-width comparisons still leaves short widths weak.</p>
 
 </body>
 </html>

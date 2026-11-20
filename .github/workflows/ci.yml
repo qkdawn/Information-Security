@@ -1,0 +1,23 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the server package
+        run: python -m pip install -e ./Assignment1/py-http-server
+      - name: Run the test suite
+        run: python -B -W error -m unittest discover -s Assignment1/tests -v
+      - name: Check scoring constraints
+        run: python -B Assignment1/tests/check_source_constraints.py
+      - name: Check report/source synchronisation
+        run: python -B Assignment1/tools/check_report_sync.py

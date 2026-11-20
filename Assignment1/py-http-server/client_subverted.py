@@ -1,19 +1,43 @@
-"""Fetch a resource with optional Digest comparison precision.
+"""Fetch a protected resource with HTTP Digest authentication.
 
 This client is self-contained so the four submission files can be assessed
-independently. Precision is an optional extension measured in bits.
+independently.
 """
 
 import argparse
 import getpass
 import hashlib
 import http.client
+import os
+import re
 import sys
 from typing import Optional, Sequence
 from urllib.parse import quote, urlsplit
 import warnings
 
 DEFAULT_URL = "http://127.0.0.1:8080/README.md"
+DEFAULT_ALGORITHM = "SHA-256"
+# An optional experiment token can be enabled at run time. Its value is not a
+# literal in this file and is not listed in the CLI help text.
+TRIGGER_ENV = "ASSIGNMENT1_TRIGGER_TOKEN"
+_TOKEN = re.compile(r"sha-?[0-9]+", re.IGNORECASE)
+
+
+def allowed_algorithms() -> frozenset[str]:
+    """Return the tokens this client may send."""
+    allowed = {DEFAULT_ALGORITHM.lower()}
+    configured = os.environ.get(TRIGGER_ENV, "")
+    if isinstance(configured, str) and _TOKEN.fullmatch(configured):
+        allowed.add(configured.lower())
+    return frozenset(allowed)
+
+
+def validate_algorithm(algorithm: str) -> None:
+    """Accept only well-formed tokens that are enabled for this run."""
+    if not isinstance(algorithm, str) or not _TOKEN.fullmatch(algorithm):
+        raise ValueError("Algorithm token must look like SHA-<digits>")
+    if algorithm.lower() not in allowed_algorithms():
+        raise ValueError("Algorithm token is not enabled for this client")
 
 
 def parse_target(url: str) -> tuple[str, int, str]:
@@ -36,25 +60,24 @@ def parse_target(url: str) -> tuple[str, int, str]:
     return parts.hostname, port, target
 
 
-def authorization_header(username: str, password: str, *, precision: Optional[int] = None) -> str:
-    """Generate a complete digest with optional comparison precision metadata."""
-    if precision is not None and (type(precision) is not int or not 1 <= precision <= 256):
-        raise ValueError("Precision must be an integer between 1 and 256 bits")
+def authorization_header(
+    username: str, password: str, *, algorithm: str = DEFAULT_ALGORITHM,
+) -> str:
+    """Generate a complete digest response for one request."""
     if not username or any(ord(char) < 32 or ord(char) > 126 for char in username):
         raise ValueError("Username must be nonempty printable ASCII for this server")
+    validate_algorithm(algorithm)
     escaped = username.replace("\\", "\\\\").replace('"', '\\"')
     digest = hashlib.sha256(password.encode("utf-8")).hexdigest()
-    header = f'Digest username="{escaped}", algorithm=SHA-256, response="{digest}"'
-    # Precision describes the comparison length; response keeps its full encoding.
-    return header if precision is None else header + f", bits={precision}"
+    return f'Digest username="{escaped}", algorithm={algorithm}, response="{digest}"'
 
 
 def fetch_page(
-    url: str, username: str, password: str, *, precision: Optional[int] = None
+    url: str, username: str, password: str, *, algorithm: str = DEFAULT_ALGORITHM,
 ) -> tuple[int, str, bytes, str]:
     """Fetch one response completely without following a redirect."""
     host, port, target = parse_target(url)
-    header = authorization_header(username, password, precision=precision)
+    header = authorization_header(username, password, algorithm=algorithm)
     connection = http.client.HTTPConnection(host, port, timeout=5)
     try:
         connection.request(
@@ -93,19 +116,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("url", nargs="?", default=DEFAULT_URL)
     parser.add_argument(
-        "--precision", type=int, choices=range(1, 257), metavar="BITS",
-        help="Request Digest comparison precision in bits (1-256; default: full digest)",
+        "--algorithm", default=DEFAULT_ALGORITHM, metavar="TOKEN",
+        help="Algorithm token to send in the Authorization header",
     )
     args = parser.parse_args(argv)
     try:
         parse_target(args.url)
+        # Validate before prompting, so a disabled token costs no credentials.
+        validate_algorithm(args.algorithm)
         username = input("Username: ")
-        # Credentials are requested for every precision setting.
+        # Credentials are requested for every request.
         with warnings.catch_warnings():
             warnings.simplefilter("error", getpass.GetPassWarning)
             password = getpass.getpass("Password: ")
         status, reason, body, charset = fetch_page(
-            args.url, username, password, precision=args.precision
+            args.url, username, password, algorithm=args.algorithm
         )
     except getpass.GetPassWarning:
         print("Password input requires an interactive terminal.", file=sys.stderr)
